@@ -140,6 +140,7 @@ app.get('/api/dashboard/feed', (req, res) => {
 // --- TTS Proxy (ElevenLabs) ---
 // API key is set ONLY here on the server. Students never see it.
 const ELEVENLABS_KEY = process.env.ELEVENLABS_API_KEY || '';
+// Default: a German male voice. Override with any voice ID from elevenlabs.io/voice-library
 const ELEVENLABS_VOICE = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
 
 app.post('/api/tts', async (req, res) => {
