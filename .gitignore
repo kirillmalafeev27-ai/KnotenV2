@@ -9,6 +9,9 @@ lerna-debug.log*
 
 node_modules
 dist
+*.db
+*.db-wal
+*.db-shm
 dist-ssr
 *.local
 

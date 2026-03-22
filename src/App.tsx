@@ -3,9 +3,19 @@ import { levels } from './data/levels';
 import GameGrid from './components/GameGrid';
 import LevelSelect from './components/LevelSelect';
 import Settings from './components/Settings';
+import StudentLogin from './components/StudentLogin';
+import TeacherDashboard from './components/TeacherDashboard';
+import { useTracking, type Student } from './hooks/useTracking';
 import './App.css';
 
 function App() {
+  // Check if teacher dashboard route
+  const isTeacher = window.location.pathname === '/teacher';
+
+  const [student, setStudent] = useState<Student | null>(() => {
+    const saved = localStorage.getItem('knoten-student');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [currentLevel, setCurrentLevel] = useState<number | null>(null);
   const [completedLevels, setCompletedLevels] = useState<Set<number>>(() => {
     const saved = localStorage.getItem('knoten-completed');
@@ -15,6 +25,8 @@ function App() {
     return localStorage.getItem('knoten-elevenlabs-key');
   });
   const [showSettings, setShowSettings] = useState(false);
+
+  const { logEvent } = useTracking(student);
 
   const handleComplete = useCallback((success: boolean) => {
     if (success && currentLevel !== null) {
@@ -35,6 +47,26 @@ function App() {
       localStorage.removeItem('knoten-elevenlabs-key');
     }
   };
+
+  const handleSelectLevel = (levelId: number) => {
+    setCurrentLevel(levelId);
+    logEvent(levelId, 'start');
+  };
+
+  const handleLogout = () => {
+    setStudent(null);
+    localStorage.removeItem('knoten-student');
+  };
+
+  // Teacher dashboard
+  if (isTeacher) {
+    return <TeacherDashboard />;
+  }
+
+  // Student login
+  if (!student) {
+    return <StudentLogin onLogin={setStudent} />;
+  }
 
   const level = currentLevel !== null ? levels.find((l) => l.id === currentLevel) : null;
 
@@ -67,6 +99,12 @@ function App() {
         </div>
       </header>
 
+      {/* Student name bar */}
+      <div className="student-bar">
+        <span className="student-name">Hallo, {student.name}!</span>
+        <button className="logout-btn" onClick={handleLogout}>Abmelden</button>
+      </div>
+
       <main className="app-main">
         {level ? (
           <GameGrid
@@ -74,11 +112,12 @@ function App() {
             level={level}
             apiKey={apiKey}
             onComplete={handleComplete}
+            logEvent={logEvent}
           />
         ) : (
           <LevelSelect
             completedLevels={completedLevels}
-            onSelect={setCurrentLevel}
+            onSelect={handleSelectLevel}
           />
         )}
       </main>

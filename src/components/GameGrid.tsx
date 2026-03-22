@@ -6,9 +6,15 @@ interface GameGridProps {
   level: Level;
   apiKey: string | null;
   onComplete: (success: boolean) => void;
+  logEvent?: (levelId: number, eventType: 'start' | 'attempt' | 'listen', data?: {
+    pathCoords?: [number, number][];
+    wordsHeard?: string[];
+    sentenceFormed?: string;
+    isCorrect?: boolean;
+  }) => void;
 }
 
-export default function GameGrid({ level, apiKey, onComplete }: GameGridProps) {
+export default function GameGrid({ level, apiKey, onComplete, logEvent }: GameGridProps) {
   const [path, setPath] = useState<[number, number][]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -130,21 +136,23 @@ export default function GameGrid({ level, apiKey, onComplete }: GameGridProps) {
       path.length === correct.length &&
       path.every(([r, c], i) => correct[i][0] === r && correct[i][1] === c);
 
+    const words = getWordsFromPath(path);
+    const sentence = words.join(' ');
+
     if (isCorrect) {
       setCompleted(true);
       setShowResult('success');
-      // Speak the full correct sentence
       speak(level.sentence);
+      logEvent?.(level.id, 'attempt', { pathCoords: path, wordsHeard: words, sentenceFormed: sentence, isCorrect: true });
       setTimeout(() => onComplete(true), 3000);
     } else if (path.length > 0) {
       setShowResult('fail');
-      // Speak what they selected so they can hear it's wrong
-      const words = getWordsFromPath(path);
+      logEvent?.(level.id, 'attempt', { pathCoords: path, wordsHeard: words, sentenceFormed: sentence, isCorrect: false });
       if (words.length > 0) {
-        speak(words.join(' '));
+        speak(sentence);
       }
     }
-  }, [isDragging, path, level.correctPath, level.sentence, speak, onComplete, getWordsFromPath]);
+  }, [isDragging, path, level.correctPath, level.sentence, level.id, speak, onComplete, getWordsFromPath, logEvent]);
 
   const reset = () => {
     setPath([]);
@@ -308,6 +316,7 @@ export default function GameGrid({ level, apiKey, onComplete }: GameGridProps) {
             if (words.length > 0) {
               setSpokenWords(words);
               speak(words.join(' '));
+              logEvent?.(level.id, 'listen', { pathCoords: path, wordsHeard: words });
             }
           }}
         >
