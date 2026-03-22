@@ -4,7 +4,6 @@ import { useTTS } from '../hooks/useTTS';
 
 interface GameGridProps {
   level: Level;
-  apiKey: string | null;
   onComplete: (success: boolean) => void;
   logEvent?: (levelId: number, eventType: 'start' | 'attempt' | 'listen', data?: {
     pathCoords?: [number, number][];
@@ -14,7 +13,7 @@ interface GameGridProps {
   }) => void;
 }
 
-export default function GameGrid({ level, apiKey, onComplete, logEvent }: GameGridProps) {
+export default function GameGrid({ level, onComplete, logEvent }: GameGridProps) {
   const [path, setPath] = useState<[number, number][]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -23,7 +22,7 @@ export default function GameGrid({ level, apiKey, onComplete, logEvent }: GameGr
   const gridRef = useRef<HTMLDivElement>(null);
   const speakTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSpokenPathRef = useRef<string>('');
-  const { speak, stop } = useTTS(apiKey);
+  const { speak, stop } = useTTS();
 
   // Reset when level changes
   useEffect(() => {

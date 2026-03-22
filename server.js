@@ -137,6 +137,57 @@ app.get('/api/dashboard/feed', (req, res) => {
   res.json({ events: parsed });
 });
 
+// --- TTS Proxy (ElevenLabs) ---
+// API key is set ONLY here on the server. Students never see it.
+const ELEVENLABS_KEY = process.env.ELEVENLABS_API_KEY || '';
+const ELEVENLABS_VOICE = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
+
+app.post('/api/tts', async (req, res) => {
+  const { text } = req.body;
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'Text required' });
+  }
+  if (!ELEVENLABS_KEY) {
+    return res.status(501).json({ error: 'no_key' });
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'xi-api-key': ELEVENLABS_KEY,
+        },
+        body: JSON.stringify({
+          text: text.trim(),
+          model_id: 'eleven_multilingual_v2',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0.0,
+            use_speaker_boost: true,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('ElevenLabs error:', response.status, errText);
+      return res.status(502).json({ error: 'elevenlabs_error' });
+    }
+
+    res.set('Content-Type', 'audio/mpeg');
+    const arrayBuf = await response.arrayBuffer();
+    res.send(Buffer.from(arrayBuf));
+  } catch (err) {
+    console.error('TTS proxy error:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
 // --- Serve static files ---
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));

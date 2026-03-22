@@ -1,10 +1,16 @@
 import { useRef, useCallback } from 'react';
 
-const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1/text-to-speech';
-// Default German voice - "Antoni" or any available voice
-const DEFAULT_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
+const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:3000';
 
-export function useTTS(apiKey: string | null) {
+function browserFallback(text: string) {
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'de-DE';
+  utterance.rate = 0.9;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+}
+
+export function useTTS() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -20,44 +26,23 @@ export function useTTS(apiKey: string | null) {
       abortControllerRef.current.abort();
     }
 
-    // If no API key, use browser's built-in TTS as fallback
-    if (!apiKey) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'de-DE';
-      utterance.rate = 0.9;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-      return;
-    }
-
     try {
       abortControllerRef.current = new AbortController();
-      const response = await fetch(`${ELEVENLABS_API_URL}/${DEFAULT_VOICE_ID}`, {
+      const response = await fetch(`${API_BASE}/api/tts`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'xi-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          text,
-          model_id: 'eleven_multilingual_v2',
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.0,
-            use_speaker_boost: true,
-          },
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
         signal: abortControllerRef.current.signal,
       });
 
+      // Server has no API key configured → use browser TTS
+      if (response.status === 501) {
+        browserFallback(text);
+        return;
+      }
+
       if (!response.ok) {
-        console.warn('ElevenLabs API error, falling back to browser TTS');
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'de-DE';
-        utterance.rate = 0.9;
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
+        browserFallback(text);
         return;
       }
 
@@ -68,14 +53,10 @@ export function useTTS(apiKey: string | null) {
       await audio.play();
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
-      console.warn('TTS error, using browser fallback:', err);
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'de-DE';
-      utterance.rate = 0.9;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
+      // Network error or server down → browser fallback
+      browserFallback(text);
     }
-  }, [apiKey]);
+  }, []);
 
   const stop = useCallback(() => {
     if (audioRef.current) {
