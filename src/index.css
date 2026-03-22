@@ -5,21 +5,22 @@
 }
 
 :root {
-  --bg: #0a0a0f;
-  --bg-card: #141420;
-  --bg-cell: #1a1a2e;
-  --border: #2a2a3e;
+  --bg: #05080F;
+  --bg-card: #0d1117;
+  --bg-cell: #141420;
+  --border: #1e2333;
   --text: #9ca3af;
   --text-h: #f3f4f6;
-  --accent: #a855f7;
-  --accent-dim: rgba(168, 85, 247, 0.15);
+  --accent: #8B5CF6;
+  --accent-dim: rgba(139, 92, 246, 0.15);
   --success: #22c55e;
   --fail: #ef4444;
-  --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --sans: 'SF Pro Display', 'Inter var', 'Inter', system-ui, -apple-system, sans-serif;
 
   font-family: var(--sans);
   color: var(--text);
   background: var(--bg);
+  color-scheme: dark;
 }
 
 body {
@@ -27,6 +28,18 @@ body {
   min-height: 100dvh;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Atmospheric CSS gradient — must not conflict with canvas ambient;
+   combined brightness never exceeds #1A1F2E */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 30%, rgba(88, 28, 135, 0.05) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: -1;
 }
 
 #root {
@@ -41,4 +54,11 @@ button {
   background: none;
   font-family: inherit;
   color: inherit;
+}
+
+/* Mobile < 380px */
+@media (max-width: 379px) {
+  :root {
+    font-size: 15px;
+  }
 }

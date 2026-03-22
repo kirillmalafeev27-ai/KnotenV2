@@ -200,12 +200,12 @@ export default function TeacherDashboard() {
                 >
                   <div className="dash-student-name">{s.name}</div>
                   <div className="dash-student-stats">
-                    <span>{s.levels_completed}/4 уровней</span>
-                    <span>{s.successful_attempts}/{s.total_attempts} верно</span>
+                    <span>{s.levels_completed}/4 Level</span>
+                    <span>{s.successful_attempts}/{s.total_attempts} richtig</span>
                   </div>
                   {s.last_active && (
                     <div className="dash-student-time">
-                      Последний вход: {formatTime(s.last_active)}
+                      Letzter Zugriff: {formatTime(s.last_active)}
                     </div>
                   )}
                 </button>

@@ -101,6 +101,12 @@ function App() {
 
       {currentLevel !== null && (
         <div className="progress-bar">
+          <div className="progress-track">
+            <div
+              className="progress-fill"
+              style={{ width: `${(completedLevels.size / (levels.length - 1)) * 100}%` }}
+            />
+          </div>
           <div className="progress-label">
             LEVEL {(currentLevel || 0).toString().padStart(2, '0')}/
             {(levels.length - 1).toString().padStart(2, '0')}
