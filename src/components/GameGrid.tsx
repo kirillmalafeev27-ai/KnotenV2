@@ -65,6 +65,7 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
   const [won, setWon] = useState(false);
   const [spokenWords, setSpokenWords] = useState<string[]>([]);
   const [spokenColor, setSpokenColor] = useState<string | null>(null);
+  const [showWords, setShowWords] = useState(false);
 
   // ── Refs ──
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -460,15 +461,34 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
 
   return (
     <div className="game-grid-container">
-      {/* Spoken words */}
+      {/* Spoken words — hidden behind hold-to-reveal button */}
       {spokenWords.length > 0 && (
-        <div className="spoken-words" style={spokenColor ? { borderColor: hexRgba(spokenColor, 0.3) } : undefined}>
-          <span className="spoken-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-          </span>
-          {spokenWords.map((w, i) => (
-            <span key={i} className="spoken-word" style={spokenColor ? { background: hexRgba(spokenColor, 0.15), color: spokenColor } : undefined}>{w}</span>
-          ))}
+        <div className="spoken-words-container">
+          {showWords ? (
+            <div className="spoken-words" style={spokenColor ? { borderColor: hexRgba(spokenColor, 0.3) } : undefined}>
+              <span className="spoken-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              </span>
+              {spokenWords.map((w, i) => (
+                <span key={i} className="spoken-word" style={spokenColor ? { background: hexRgba(spokenColor, 0.15), color: spokenColor } : undefined}>{w}</span>
+              ))}
+            </div>
+          ) : (
+            <div className="spoken-words-placeholder">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>Halte gedrückt, um Wörter zu sehen</span>
+            </div>
+          )}
+          <button
+            className="show-words-btn"
+            onPointerDown={() => setShowWords(true)}
+            onPointerUp={() => setShowWords(false)}
+            onPointerLeave={() => setShowWords(false)}
+            onPointerCancel={() => setShowWords(false)}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            {showWords ? 'Wörter sichtbar' : 'Wörter zeigen'}
+          </button>
         </div>
       )}
 
