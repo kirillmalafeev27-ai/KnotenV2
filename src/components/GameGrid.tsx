@@ -150,7 +150,7 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
         setSpokenColor(color);
         speak(words.join(' '));
       }
-    }, 2000);
+    }, 750);
   }, [wordGrid, speak]);
 
   // ── Check win ──
@@ -254,11 +254,14 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
   }, [getCellFromCanvas, getOccupant, scheduleSpeech]);
 
   const handlePointerUp = useCallback(() => {
-    if (!activeColorRef.current) return;
+    const color = activeColorRef.current;
+    if (!color) return;
     setActiveColor(null);
+    // Schedule speech after releasing (750ms delay)
     if (speakTimerRef.current) clearTimeout(speakTimerRef.current);
+    scheduleSpeech(color);
     checkWin();
-  }, [checkWin]);
+  }, [checkWin, scheduleSpeech]);
 
   const reset = () => {
     stop();
