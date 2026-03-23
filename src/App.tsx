@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { levels } from './data/levels';
+import { getActiveLevels } from './data/levels';
 import GameGrid from './components/GameGrid';
 import LevelSelect from './components/LevelSelect';
 import StudentLogin from './components/StudentLogin';
@@ -19,6 +19,7 @@ function App() {
     const saved = localStorage.getItem('knoten-completed');
     return saved ? new Set(JSON.parse(saved)) : new Set<number>();
   });
+  const activeLevels = getActiveLevels();
 
   const { logEvent } = useTracking(student);
 
@@ -51,7 +52,7 @@ function App() {
     return <StudentLogin onLogin={setStudent} />;
   }
 
-  const level = currentLevel !== null ? levels.find((l) => l.id === currentLevel) : null;
+  const level = currentLevel !== null ? activeLevels.find((l) => l.id === currentLevel) : null;
 
   return (
     <div className="app">
@@ -104,12 +105,12 @@ function App() {
           <div className="progress-track">
             <div
               className="progress-fill"
-              style={{ width: `${(completedLevels.size / levels.length) * 100}%` }}
+              style={{ width: `${(completedLevels.size / activeLevels.length) * 100}%` }}
             />
           </div>
           <div className="progress-label">
             LEVEL {(currentLevel).toString().padStart(2, '0')}/
-            {levels.length.toString().padStart(2, '0')}
+            {activeLevels.length.toString().padStart(2, '0')}
           </div>
         </div>
       )}

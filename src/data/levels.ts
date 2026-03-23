@@ -510,3 +510,55 @@ export const levels: Level[] = [
     ],
   },
 ];
+
+// ── Content overrides from localStorage ──
+const STORAGE_KEY = 'knoten-level-overrides';
+
+export interface LevelContentOverride {
+  lines: { tokens: string[]; sentence: string }[];
+  grammarTopic?: string;
+  vocabTopic?: string;
+  difficulty?: 'A1' | 'A2' | 'B1' | 'B2';
+}
+
+export function getOverrides(): Record<number, LevelContentOverride> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+export function saveOverride(levelId: number, override: LevelContentOverride) {
+  const all = getOverrides();
+  all[levelId] = override;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+}
+
+export function removeOverride(levelId: number) {
+  const all = getOverrides();
+  delete all[levelId];
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+}
+
+export function resetAllOverrides() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+export function getActiveLevels(): Level[] {
+  const overrides = getOverrides();
+  return levels.map(base => {
+    const ov = overrides[base.id];
+    if (!ov) return base;
+    return {
+      ...base,
+      grammarTopic: ov.grammarTopic || base.grammarTopic,
+      vocabTopic: ov.vocabTopic || base.vocabTopic,
+      difficulty: ov.difficulty || base.difficulty,
+      lines: base.lines.map((line, i) => {
+        const ovLine = ov.lines[i];
+        if (!ovLine) return line;
+        return { ...line, tokens: ovLine.tokens, sentence: ovLine.sentence };
+      }),
+    };
+  });
+}

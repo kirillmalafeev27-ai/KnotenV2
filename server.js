@@ -200,62 +200,52 @@ app.post('/api/claude', async (req, res) => {
   if (!grammarTopic || !vocabTopic || !difficulty || !levelSpec) {
     return res.status(400).json({ error: 'Fehlende Felder' });
   }
-  const { rows, cols, lines: lineCounts } = levelSpec;
-  if (!rows || !cols || !Array.isArray(lineCounts) || lineCounts.length === 0) {
+  const { lines: lineCounts } = levelSpec;
+  if (!Array.isArray(lineCounts) || lineCounts.length === 0) {
     return res.status(400).json({ error: 'Ungültige Level-Spezifikation' });
   }
-  const totalCells = rows * cols;
 
   const lineRequirements = lineCounts.map((count, i) =>
-    `- Linie ${i+1}: genau ${count} Wörter/Tokens (= ${count} Zellen im Pfad)`
+    `- Satz ${i+1}: GENAU ${count} Tokens`
   ).join('\n');
 
   const customSection = customPrompt
     ? `\nZusätzliche Anweisungen vom Lehrer:\n${customPrompt}\n`
     : '';
 
-  const prompt = `Du bist ein Experte für Deutsch als Fremdsprache. Erstelle Inhalte für ein Sprachspiel-Level (Level ${levelNumber || '?'}).
+  const prompt = `Du bist ein Experte für Deutsch als Fremdsprache.
 
-WICHTIG — Struktur des Levels:
-- Raster: ${rows} Zeilen × ${cols} Spalten = ${totalCells} Zellen insgesamt
-- ${lineCounts.length} Linien (= ${lineCounts.length} Sätze)
-- Jede Linie hat eine feste Anzahl Zellen. Die Anzahl Tokens (Wörter) MUSS EXAKT der Zellenanzahl entsprechen:
+Erstelle ${lineCounts.length} deutsche Sätze für ein Sprachspiel (Level ${levelNumber || '?'}).
+Niveau: ${difficulty}, Grammatik: ${grammarTopic}, Wortschatz: ${vocabTopic}.
+
+KRITISCHE REGEL — Tokenanzahl pro Satz:
+Jeder Satz wird in Tokens aufgeteilt. Die Anzahl Tokens MUSS EXAKT stimmen:
 ${lineRequirements}
 
-Regeln für die Sätze:
-- Jeder Satz muss grammatisch korrekt sein
-- Niveau: ${difficulty}, Grammatik: ${grammarTopic}, Wortschatz: ${vocabTopic}
-- Multi-Wort-Phrasen (z.B. "zu Hause", "am Abend", "in der") zählen als EIN Token/eine Zelle
-- Kurze Linien (3-4 Wörter): kurzer Ausruf oder Kommentar (z.B. "Das ist toll!", "Sehr gut gemacht!")
-- Lange Linien (10+ Wörter): vollständiger, sinnvoller Satz
+Was ist ein Token?
+- Ein einzelnes Wort = 1 Token (z.B. "ich", "habe", "gut")
+- Eine Multi-Wort-Phrase = 1 Token (z.B. "zu Hause", "am Abend", "in der", "mit dem")
+- Verwende Multi-Wort-Phrasen, um die Tokenanzahl exakt zu erreichen
+
+Regeln:
+- Jeder Satz muss grammatisch korrekt und sinnvoll sein
+- Kurze Sätze (3-5 Tokens): Ausruf oder Kommentar (z.B. "Das ist toll!", "Sehr gut gemacht!")
+- Lange Sätze (10+ Tokens): vollständiger, sinnvoller Satz mit Nebensatz
+- Alle Sätze sollen thematisch zusammenpassen
 ${customSection}
-Farben: #FF3A5C, #00E5A0, #4D9EFF, #FFD040, #A855F7, #FF6B30, #59F0FF
+ZÄHLE DEINE TOKENS SORGFÄLTIG! Jeder Satz muss EXAKT die angegebene Tokenanzahl haben.
 
-KRITISCH: Die Pfade (cells) müssen:
-- Orthogonal zusammenhängen (jede Zelle grenzt an die nächste: hoch/runter/links/rechts)
-- Sich NICHT überschneiden
-- ALLE ${totalCells} Zellen des Rasters abdecken (keine Lücken)
-- Innerhalb der Grenzen 0..${rows-1} (Zeilen) und 0..${cols-1} (Spalten) liegen
-
-Antworte NUR mit dem JSON-Objekt:
+Antworte NUR mit JSON, kein anderer Text:
 {
-  "id": 100,
-  "ref": "gen",
-  "title": "Level ${levelNumber || '?'}",
-  "subtitle": "${vocabTopic}",
-  "rows": ${rows},
-  "cols": ${cols},
+  "sentences": [
+    {
+      "tokens": ["Wort1", "Wort2", "am Abend", ...],
+      "sentence": "Wort1 Wort2 am Abend ..."
+    }
+  ],
   "grammarTopic": "${grammarTopic}",
   "vocabTopic": "${vocabTopic}",
-  "difficulty": "${difficulty}",
-  "lines": [
-    {
-      "color": "#...",
-      "cells": [{"r": 0, "c": 0}, ...],
-      "tokens": ["Wort1", "Wort2", ...],
-      "sentence": "Ganzer Satz."
-    }
-  ]
+  "difficulty": "${difficulty}"
 }`;
 
   try {
@@ -286,8 +276,8 @@ Antworte NUR mit dem JSON-Objekt:
     if (!jsonMatch) {
       return res.status(500).json({ error: 'Kein JSON in der Antwort gefunden' });
     }
-    const level = JSON.parse(jsonMatch[0]);
-    res.json({ level });
+    const result = JSON.parse(jsonMatch[0]);
+    res.json({ result });
   } catch (err) {
     console.error('Claude proxy error:', err);
     res.status(500).json({ error: 'Server-Fehler' });

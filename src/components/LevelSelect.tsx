@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { levels } from '../data/levels';
+import { getActiveLevels } from '../data/levels';
 import { GRAMMAR_TOPICS, VOCAB_TOPICS } from '../data/grammarTopics';
 import type { Level } from '../types/game';
 
@@ -15,19 +15,21 @@ export default function LevelSelect({ completedLevels, onSelect }: LevelSelectPr
   const [grammarTopic, setGrammarTopic] = useState<string>('');
   const [vocabTopic, setVocabTopic] = useState<string>('');
 
+  const activeLevels = useMemo(() => getActiveLevels(), []);
+
   const filtered = useMemo(() => {
-    let result: Level[] = levels;
+    let result: Level[] = activeLevels;
     if (difficulty) result = result.filter(l => l.difficulty === difficulty);
     if (grammarTopic) result = result.filter(l => l.grammarTopic === grammarTopic);
     if (vocabTopic) result = result.filter(l => l.vocabTopic === vocabTopic);
     return result;
-  }, [difficulty, grammarTopic, vocabTopic]);
+  }, [difficulty, grammarTopic, vocabTopic, activeLevels]);
 
   // Only show topics that exist in levels
   const availableGrammar = useMemo(() =>
-    GRAMMAR_TOPICS.filter(t => levels.some(l => l.grammarTopic === t)), []);
+    GRAMMAR_TOPICS.filter(t => activeLevels.some(l => l.grammarTopic === t)), [activeLevels]);
   const availableVocab = useMemo(() =>
-    VOCAB_TOPICS.filter(t => levels.some(l => l.vocabTopic === t)), []);
+    VOCAB_TOPICS.filter(t => activeLevels.some(l => l.vocabTopic === t)), [activeLevels]);
 
   return (
     <div className="level-select">

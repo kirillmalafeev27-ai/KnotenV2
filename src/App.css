@@ -1299,6 +1299,88 @@
   white-space: nowrap;
 }
 
+/* === Settings / Overrides === */
+.dash-settings-section h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-h);
+  margin-bottom: 10px;
+}
+
+.dash-overrides-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dash-override-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.dash-override-reset {
+  font-size: 12px;
+  color: var(--fail);
+  padding: 4px 10px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.dash-override-reset:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.dash-action-btn.danger {
+  background: var(--fail);
+}
+
+.dash-action-btn.secondary {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-h);
+}
+
+.dash-action-btn.secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dash-gen-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dash-gen-level-btn.modified {
+  border-color: rgba(250, 204, 21, 0.4);
+}
+
+.dash-gen-level-mod {
+  font-size: 9px;
+  font-weight: 700;
+  color: #facc15;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dash-gen-line-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
 /* === Mobile < 380px === */
 @media (max-width: 379px) {
   .app {
