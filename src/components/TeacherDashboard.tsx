@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { GRAMMAR_TOPICS, VOCAB_TOPICS } from '../data/grammarTopics';
+import { validateLevel, type Level } from '../types/game';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:3000';
 
@@ -40,8 +42,28 @@ export default function TeacherDashboard() {
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
   const [studentEvents, setStudentEvents] = useState<StudentEvent[]>([]);
   const [studentName, setStudentName] = useState('');
-  const [tab, setTab] = useState<'students' | 'feed'>('feed');
+  const [tab, setTab] = useState<'feed' | 'students' | 'import' | 'generate' | 'topics' | 'cells'>('feed');
   const [loading, setLoading] = useState(true);
+
+  // JSON Import state
+  const [jsonInput, setJsonInput] = useState('');
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importSuccess, setImportSuccess] = useState(false);
+
+  // Claude API generation state
+  const [genGrammar, setGenGrammar] = useState<string>(GRAMMAR_TOPICS[0]);
+  const [genVocab, setGenVocab] = useState<string>(VOCAB_TOPICS[0]);
+  const [genDifficulty, setGenDifficulty] = useState<'A1' | 'A2' | 'B1' | 'B2'>('A1');
+  const [genRows, setGenRows] = useState(6);
+  const [genCols, setGenCols] = useState(5);
+  const [genResult, setGenResult] = useState('');
+  const [genLoading, setGenLoading] = useState(false);
+  const [genError, setGenError] = useState('');
+
+  // Cells display state
+  const [cellsJson, setCellsJson] = useState('');
+  const [cellsData, setCellsData] = useState<{r:number;c:number;word:string;color:string;index:number;sentence:string}[]>([]);
+  const [cellsError, setCellsError] = useState('');
 
   const fetchData = useCallback(async () => {
     try {
@@ -62,7 +84,7 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 5000); // auto-refresh every 5s
+    const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -92,6 +114,99 @@ export default function TeacherDashboard() {
     }
   };
 
+  // ── JSON Import ──
+  const handleImport = () => {
+    setImportErrors([]);
+    setImportSuccess(false);
+    try {
+      const parsed = JSON.parse(jsonInput) as Level;
+      const errors = validateLevel(parsed);
+      if (errors.length > 0) {
+        setImportErrors(errors);
+        return;
+      }
+      // Check required fields
+      const missing: string[] = [];
+      if (!parsed.id) missing.push('id fehlt');
+      if (!parsed.title) missing.push('title fehlt');
+      if (!parsed.rows || !parsed.cols) missing.push('rows/cols fehlt');
+      if (!parsed.lines || parsed.lines.length === 0) missing.push('lines fehlt');
+      if (!parsed.grammarTopic) missing.push('grammarTopic fehlt');
+      if (!parsed.vocabTopic) missing.push('vocabTopic fehlt');
+      if (!parsed.difficulty) missing.push('difficulty fehlt');
+      for (const line of (parsed.lines || [])) {
+        if (!line.color) missing.push('Linie ohne color');
+        if (!line.sentence) missing.push('Linie ohne sentence');
+      }
+      if (missing.length > 0) {
+        setImportErrors(missing);
+        return;
+      }
+      setImportSuccess(true);
+      setImportErrors([]);
+    } catch (e) {
+      setImportErrors([`JSON-Fehler: ${(e as Error).message}`]);
+    }
+  };
+
+  // ── Claude API Generation ──
+  const handleGenerate = async () => {
+    setGenLoading(true);
+    setGenError('');
+    setGenResult('');
+    try {
+      const res = await fetch(`${API_BASE}/api/claude`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grammarTopic: genGrammar,
+          vocabTopic: genVocab,
+          difficulty: genDifficulty,
+          rows: genRows,
+          cols: genCols,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setGenError(err.error || 'Fehler bei der Generierung');
+        return;
+      }
+      const data = await res.json();
+      setGenResult(JSON.stringify(data.level, null, 2));
+    } catch {
+      setGenError('Netzwerkfehler');
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  // ── Cells Display ──
+  const handleParseCells = () => {
+    setCellsData([]);
+    setCellsError('');
+    try {
+      const parsed = JSON.parse(cellsJson) as Level;
+      const cells: typeof cellsData = [];
+      for (const line of (parsed.lines || [])) {
+        for (let i = 0; i < line.cells.length; i++) {
+          const cell = line.cells[i];
+          cells.push({
+            r: cell.r,
+            c: cell.c,
+            word: line.tokens[i] || '',
+            color: line.color,
+            index: i,
+            sentence: line.sentence,
+          });
+        }
+      }
+      cells.sort((a, b) => a.r - b.r || a.c - b.c);
+      setCellsData(cells);
+    } catch (e) {
+      setCellsError(`JSON-Fehler: ${(e as Error).message}`);
+    }
+  };
+
   if (loading) {
     return <div className="dashboard"><div className="dash-loading">Laden...</div></div>;
   }
@@ -106,7 +221,7 @@ export default function TeacherDashboard() {
       {selectedStudent ? (
         <div className="dash-student-detail">
           <button className="dash-back" onClick={() => setSelectedStudent(null)}>
-            ← Zurück
+            &#8592; Zurück
           </button>
           <h2>{studentName}</h2>
           <div className="dash-events">
@@ -145,21 +260,27 @@ export default function TeacherDashboard() {
       ) : (
         <>
           <div className="dash-tabs">
-            <button
-              className={`dash-tab ${tab === 'feed' ? 'active' : ''}`}
-              onClick={() => setTab('feed')}
-            >
+            <button className={`dash-tab ${tab === 'feed' ? 'active' : ''}`} onClick={() => setTab('feed')}>
               Live-Feed
             </button>
-            <button
-              className={`dash-tab ${tab === 'students' ? 'active' : ''}`}
-              onClick={() => setTab('students')}
-            >
+            <button className={`dash-tab ${tab === 'students' ? 'active' : ''}`} onClick={() => setTab('students')}>
               Schüler
+            </button>
+            <button className={`dash-tab ${tab === 'import' ? 'active' : ''}`} onClick={() => setTab('import')}>
+              Import
+            </button>
+            <button className={`dash-tab ${tab === 'generate' ? 'active' : ''}`} onClick={() => setTab('generate')}>
+              Generieren
+            </button>
+            <button className={`dash-tab ${tab === 'topics' ? 'active' : ''}`} onClick={() => setTab('topics')}>
+              Themen
+            </button>
+            <button className={`dash-tab ${tab === 'cells' ? 'active' : ''}`} onClick={() => setTab('cells')}>
+              Zellen
             </button>
           </div>
 
-          {tab === 'feed' ? (
+          {tab === 'feed' && (
             <div className="dash-feed">
               {feed.length === 0 ? (
                 <p className="dash-empty">Noch keine Aktivität. Teile den Link mit deinen Schülern!</p>
@@ -174,7 +295,7 @@ export default function TeacherDashboard() {
                       <span className="dash-event-level">L{ev.level_id}</span>
                       {ev.event_type === 'attempt' && (
                         <span className={`dash-event-result ${ev.is_correct ? 'ok' : 'fail'}`}>
-                          {ev.is_correct ? '✓' : '✗'}
+                          {ev.is_correct ? '\u2713' : '\u2717'}
                         </span>
                       )}
                       <span className="dash-event-time">{formatTime(ev.created_at)}</span>
@@ -190,7 +311,9 @@ export default function TeacherDashboard() {
                 ))
               )}
             </div>
-          ) : (
+          )}
+
+          {tab === 'students' && (
             <div className="dash-students">
               {students.map((s) => (
                 <button
@@ -200,7 +323,7 @@ export default function TeacherDashboard() {
                 >
                   <div className="dash-student-name">{s.name}</div>
                   <div className="dash-student-stats">
-                    <span>{s.levels_completed}/4 Level</span>
+                    <span>{s.levels_completed} Level</span>
                     <span>{s.successful_attempts}/{s.total_attempts} richtig</span>
                   </div>
                   {s.last_active && (
@@ -210,6 +333,134 @@ export default function TeacherDashboard() {
                   )}
                 </button>
               ))}
+            </div>
+          )}
+
+          {tab === 'import' && (
+            <div className="dash-panel">
+              <h3>JSON-Level importieren</h3>
+              <p className="dash-panel-desc">
+                Füge ein Level im JSON-Format ein. Das Level wird validiert:
+                Tokenanzahl = Zellenanzahl, orthogonale Nachbarschaft, keine Duplikate, volle Abdeckung.
+              </p>
+              <textarea
+                className="dash-textarea"
+                rows={12}
+                value={jsonInput}
+                onChange={e => setJsonInput(e.target.value)}
+                placeholder='{"id": 12, "title": "Level 12", ...}'
+              />
+              <button className="dash-action-btn" onClick={handleImport}>
+                Validieren
+              </button>
+              {importErrors.length > 0 && (
+                <div className="dash-errors">
+                  {importErrors.map((err, i) => (
+                    <div key={i} className="dash-error-item">{err}</div>
+                  ))}
+                </div>
+              )}
+              {importSuccess && (
+                <div className="dash-success">Level ist valide!</div>
+              )}
+            </div>
+          )}
+
+          {tab === 'generate' && (
+            <div className="dash-panel">
+              <h3>Level mit Claude API generieren</h3>
+              <div className="dash-gen-form">
+                <div className="dash-gen-row">
+                  <label>Grammatik</label>
+                  <select value={genGrammar} onChange={e => setGenGrammar(e.target.value)}>
+                    {GRAMMAR_TOPICS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="dash-gen-row">
+                  <label>Wortschatz</label>
+                  <select value={genVocab} onChange={e => setGenVocab(e.target.value)}>
+                    {VOCAB_TOPICS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="dash-gen-row">
+                  <label>Schwierigkeit</label>
+                  <select value={genDifficulty} onChange={e => setGenDifficulty(e.target.value as 'A1'|'A2'|'B1'|'B2')}>
+                    <option value="A1">A1</option>
+                    <option value="A2">A2</option>
+                    <option value="B1">B1</option>
+                    <option value="B2">B2</option>
+                  </select>
+                </div>
+                <div className="dash-gen-row">
+                  <label>Raster</label>
+                  <div className="dash-gen-size">
+                    <input type="number" min={3} max={12} value={genRows} onChange={e => setGenRows(Number(e.target.value))} />
+                    <span>&times;</span>
+                    <input type="number" min={3} max={12} value={genCols} onChange={e => setGenCols(Number(e.target.value))} />
+                  </div>
+                </div>
+                <button className="dash-action-btn" onClick={handleGenerate} disabled={genLoading}>
+                  {genLoading ? 'Generiere...' : 'Generieren'}
+                </button>
+              </div>
+              {genError && <div className="dash-errors"><div className="dash-error-item">{genError}</div></div>}
+              {genResult && (
+                <textarea className="dash-textarea" rows={16} value={genResult} readOnly />
+              )}
+            </div>
+          )}
+
+          {tab === 'topics' && (
+            <div className="dash-panel">
+              <h3>Grammatik-Themen ({GRAMMAR_TOPICS.length})</h3>
+              <div className="dash-topics-list">
+                {GRAMMAR_TOPICS.map(t => (
+                  <span key={t} className="dash-topic-chip">{t}</span>
+                ))}
+              </div>
+              <h3 style={{ marginTop: 20 }}>Wortschatz-Themen ({VOCAB_TOPICS.length})</h3>
+              <div className="dash-topics-list">
+                {VOCAB_TOPICS.map(t => (
+                  <span key={t} className="dash-topic-chip vocab">{t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {tab === 'cells' && (
+            <div className="dash-panel">
+              <h3>Zelleninhalt anzeigen</h3>
+              <p className="dash-panel-desc">
+                Füge Level-JSON ein, um Zeile/Spalte, Wort, Farbe, Index und Satz jeder Zelle zu sehen.
+              </p>
+              <textarea
+                className="dash-textarea"
+                rows={8}
+                value={cellsJson}
+                onChange={e => setCellsJson(e.target.value)}
+                placeholder='{"rows": 10, "cols": 6, "lines": [...]}'
+              />
+              <button className="dash-action-btn" onClick={handleParseCells}>
+                Anzeigen
+              </button>
+              {cellsError && <div className="dash-errors"><div className="dash-error-item">{cellsError}</div></div>}
+              {cellsData.length > 0 && (
+                <div className="dash-cells-table">
+                  <div className="dash-cells-header">
+                    <span>Zeile</span><span>Spalte</span><span>Wort</span><span>Farbe</span><span>Index</span><span>Satz</span>
+                  </div>
+                  {cellsData.map((cell, i) => (
+                    <div key={i} className="dash-cells-row">
+                      <span>{cell.r}</span>
+                      <span>{cell.c}</span>
+                      <span className="dash-cells-word">{cell.word}</span>
+                      <span><span className="dash-cells-color" style={{ background: cell.color }} /></span>
+                      <span>{cell.index}</span>
+                      <span className="dash-cells-sentence">{cell.sentence}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </>

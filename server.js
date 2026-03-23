@@ -189,6 +189,89 @@ app.post('/api/tts', async (req, res) => {
   }
 });
 
+// --- Claude API proxy ---
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
+
+app.post('/api/claude', async (req, res) => {
+  if (!ANTHROPIC_KEY) {
+    return res.status(501).json({ error: 'ANTHROPIC_API_KEY nicht gesetzt' });
+  }
+  const { grammarTopic, vocabTopic, difficulty, rows, cols } = req.body;
+  if (!grammarTopic || !vocabTopic || !difficulty || !rows || !cols) {
+    return res.status(400).json({ error: 'Fehlende Felder' });
+  }
+
+  const prompt = `Du bist ein Experte für Deutsch als Fremdsprache. Erstelle ein Level für ein Sprachspiel im JSON-Format.
+
+Regeln:
+- Raster: ${rows} Zeilen × ${cols} Spalten
+- Mehrere Linien, die das gesamte Raster lückenlos abdecken
+- Jede Linie: zusammenhängende orthogonale Zellen (nur hoch/runter/links/rechts, keine Diagonalen)
+- Keine Überschneidungen zwischen Linien
+- Jede Linie enthält einen grammatisch korrekten deutschen Satz
+- Jede Zelle enthält ein Wort oder eine Multi-Wort-Phrase (z.B. "zu Hause", "am Abend")
+- Tokenanzahl = Zellenanzahl pro Linie
+- Grammatik: ${grammarTopic}, Wortschatz: ${vocabTopic}, Niveau: ${difficulty}
+
+Farben: #FF3A5C (rot), #00E5A0 (grün), #4D9EFF (blau), #FFD040 (gelb), #A855F7 (lila), #FF6B30 (orange), #59F0FF (cyan)
+
+Antworte NUR mit dem JSON-Objekt, kein anderer Text:
+{
+  "id": 100,
+  "ref": "gen",
+  "title": "Generiert",
+  "subtitle": "${vocabTopic}",
+  "rows": ${rows},
+  "cols": ${cols},
+  "grammarTopic": "${grammarTopic}",
+  "vocabTopic": "${vocabTopic}",
+  "difficulty": "${difficulty}",
+  "lines": [
+    {
+      "color": "#...",
+      "cells": [{"r": 0, "c": 0}, ...],
+      "tokens": ["Wort1", "Wort2", ...],
+      "sentence": "Ganzer Satz."
+    }
+  ]
+}`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Anthropic error:', response.status, errText);
+      return res.status(502).json({ error: 'Fehler bei Anthropic API' });
+    }
+
+    const data = await response.json();
+    const text = data.content[0]?.text || '';
+    // Extract JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return res.status(500).json({ error: 'Kein JSON in der Antwort gefunden' });
+    }
+    const level = JSON.parse(jsonMatch[0]);
+    res.json({ level });
+  } catch (err) {
+    console.error('Claude proxy error:', err);
+    res.status(500).json({ error: 'Server-Fehler' });
+  }
+});
+
 // --- Serve static files ---
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));

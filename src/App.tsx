@@ -59,7 +59,7 @@ function App() {
         <div className="header-left">
           {currentLevel !== null ? (
             <button className="back-btn" onClick={() => setCurrentLevel(null)}>
-              ←
+              &#8592;
             </button>
           ) : (
             <div className="logo">KW</div>
@@ -69,7 +69,7 @@ function App() {
           {level ? (
             <div className="level-info">
               <span className="level-label">{level.title}</span>
-              <span className="level-sub">{level.subtitle}</span>
+              <span className="level-sub">{level.subtitle} &middot; {level.difficulty}</span>
             </div>
           ) : (
             <span className="header-title">Knot Words</span>
@@ -104,12 +104,12 @@ function App() {
           <div className="progress-track">
             <div
               className="progress-fill"
-              style={{ width: `${(completedLevels.size / (levels.length - 1)) * 100}%` }}
+              style={{ width: `${(completedLevels.size / levels.length) * 100}%` }}
             />
           </div>
           <div className="progress-label">
-            LEVEL {(currentLevel || 0).toString().padStart(2, '0')}/
-            {(levels.length - 1).toString().padStart(2, '0')}
+            LEVEL {(currentLevel).toString().padStart(2, '0')}/
+            {levels.length.toString().padStart(2, '0')}
           </div>
         </div>
       )}
