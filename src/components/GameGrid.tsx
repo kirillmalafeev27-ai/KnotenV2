@@ -139,19 +139,23 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
   }, [level.rows, level.cols]);
 
   // ── TTS ──
+  const speakLine = useCallback((color: string) => {
+    const path = linesRef.current[color];
+    if (!path || path.length < 2) return;
+    const words = path.map(([r, c]) => wordGrid[r][c]).filter(Boolean);
+    if (words.length > 0) {
+      setSpokenWords(words);
+      setSpokenColor(color);
+      speak(words.join(' '));
+    }
+  }, [wordGrid, speak]);
+
   const scheduleSpeech = useCallback((color: string) => {
     if (speakTimerRef.current) clearTimeout(speakTimerRef.current);
     speakTimerRef.current = setTimeout(() => {
-      const path = linesRef.current[color];
-      if (!path || path.length < 2) return;
-      const words = path.map(([r, c]) => wordGrid[r][c]).filter(Boolean);
-      if (words.length > 0) {
-        setSpokenWords(words);
-        setSpokenColor(color);
-        speak(words.join(' '));
-      }
+      speakLine(color);
     }, 750);
-  }, [wordGrid, speak]);
+  }, [speakLine]);
 
   // ── Check win ──
   const checkWin = useCallback(() => {
@@ -257,11 +261,10 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
     const color = activeColorRef.current;
     if (!color) return;
     setActiveColor(null);
-    // Schedule speech after releasing (750ms delay)
     if (speakTimerRef.current) clearTimeout(speakTimerRef.current);
-    scheduleSpeech(color);
+    speakLine(color);
     checkWin();
-  }, [checkWin, scheduleSpeech]);
+  }, [checkWin, speakLine]);
 
   const reset = () => {
     stop();
