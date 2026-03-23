@@ -205,7 +205,6 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
       setLines(prev => ({ ...prev, [sd.color]: [[r, c]] }));
       const cs = sizeRef.current.cs;
       emit(particlesRef.current, c*cs+cs/2, r*cs+cs/2, sd.color, 4);
-      scheduleSpeech(sd.color);
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
       return;
     }
@@ -220,7 +219,7 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
         return;
       }
     }
-  }, [getCellFromCanvas, startDots, stop, scheduleSpeech]);
+  }, [getCellFromCanvas, startDots, stop]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const ac = activeColorRef.current;
@@ -239,7 +238,6 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
       if (path.length >= 2) {
         const sl = path[path.length - 2];
         if (sl[0] === r && sl[1] === c) {
-          scheduleSpeech(ac);
           return { ...prev, [ac]: path.slice(0, -1) };
         }
       }
@@ -252,19 +250,18 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
       const cs = sizeRef.current.cs;
       emit(particlesRef.current, c*cs+cs/2, r*cs+cs/2, ac, 3);
       addWave(wavesRef.current, ac);
-      scheduleSpeech(ac);
       return { ...prev, [ac]: [...path, [r, c]] };
     });
-  }, [getCellFromCanvas, getOccupant, scheduleSpeech]);
+  }, [getCellFromCanvas, getOccupant]);
 
   const handlePointerUp = useCallback(() => {
     const color = activeColorRef.current;
     if (!color) return;
     setActiveColor(null);
     if (speakTimerRef.current) clearTimeout(speakTimerRef.current);
-    speakLine(color);
+    scheduleSpeech(color);
     checkWin();
-  }, [checkWin, speakLine]);
+  }, [checkWin, scheduleSpeech]);
 
   const reset = () => {
     stop();
