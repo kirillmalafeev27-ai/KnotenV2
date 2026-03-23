@@ -54,8 +54,8 @@ export default function TeacherDashboard() {
   const [genGrammar, setGenGrammar] = useState<string>(GRAMMAR_TOPICS[0]);
   const [genVocab, setGenVocab] = useState<string>(VOCAB_TOPICS[0]);
   const [genDifficulty, setGenDifficulty] = useState<'A1' | 'A2' | 'B1' | 'B2'>('A1');
-  const [genRows, setGenRows] = useState(6);
-  const [genCols, setGenCols] = useState(5);
+  const [genLevel, setGenLevel] = useState(1);
+  const [genPrompt, setGenPrompt] = useState('');
   const [genResult, setGenResult] = useState('');
   const [genLoading, setGenLoading] = useState(false);
   const [genError, setGenError] = useState('');
@@ -149,6 +149,24 @@ export default function TeacherDashboard() {
     }
   };
 
+  // ── Level specs for generation ──
+  const LEVEL_SPECS: Record<number, { rows: number; cols: number; lines: number[] }> = {
+    1:  { rows: 10, cols: 6, lines: [10, 13, 3, 17, 17] },
+    2:  { rows: 10, cols: 6, lines: [13, 20, 3, 4, 7, 6, 7] },
+    3:  { rows: 10, cols: 6, lines: [3, 22, 13, 13, 9] },
+    4:  { rows: 8,  cols: 5, lines: [4, 13, 15, 8] },
+    5:  { rows: 9,  cols: 7, lines: [12, 7, 3, 8, 5, 18, 10] },
+    6:  { rows: 9,  cols: 7, lines: [14, 13, 6, 13, 11, 6] },
+    7:  { rows: 9,  cols: 7, lines: [7, 3, 17, 15, 12, 6, 3] },
+    8:  { rows: 10, cols: 6, lines: [6, 18, 17, 11, 8] },
+    9:  { rows: 10, cols: 7, lines: [23, 10, 8, 7, 10, 12] },
+    10: { rows: 9,  cols: 7, lines: [10, 18, 6, 6, 14, 9] },
+    11: { rows: 10, cols: 7, lines: [11, 19, 7, 8, 16, 9] },
+  };
+
+  const selectedSpec = LEVEL_SPECS[genLevel];
+  const totalCells = selectedSpec.rows * selectedSpec.cols;
+
   // ── Claude API Generation ──
   const handleGenerate = async () => {
     setGenLoading(true);
@@ -162,8 +180,9 @@ export default function TeacherDashboard() {
           grammarTopic: genGrammar,
           vocabTopic: genVocab,
           difficulty: genDifficulty,
-          rows: genRows,
-          cols: genCols,
+          levelSpec: selectedSpec,
+          levelNumber: genLevel,
+          customPrompt: genPrompt,
         }),
       });
       if (!res.ok) {
@@ -369,6 +388,37 @@ export default function TeacherDashboard() {
           {tab === 'generate' && (
             <div className="dash-panel">
               <h3>Level mit Claude API generieren</h3>
+              <p className="dash-panel-desc">
+                Wähle ein Level-Template, Thema und Schwierigkeit. Schreibe optional deinen eigenen Prompt für die Sätze.
+              </p>
+
+              {/* Level selector */}
+              <div className="dash-gen-section">
+                <label className="dash-gen-section-label">Level-Template</label>
+                <div className="dash-gen-levels">
+                  {Object.entries(LEVEL_SPECS).map(([num, spec]) => (
+                    <button
+                      key={num}
+                      className={`dash-gen-level-btn ${genLevel === +num ? 'active' : ''}`}
+                      onClick={() => setGenLevel(+num)}
+                    >
+                      <span className="dash-gen-level-num">{num}</span>
+                      <span className="dash-gen-level-info">{spec.rows}&times;{spec.cols}</span>
+                      <span className="dash-gen-level-info">{spec.lines.length} Linien</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Selected level details */}
+              <div className="dash-gen-spec">
+                <span>Raster: {selectedSpec.rows}&times;{selectedSpec.cols} ({totalCells} Zellen)</span>
+                <span>{selectedSpec.lines.length} Sätze:</span>
+                {selectedSpec.lines.map((count, i) => (
+                  <span key={i} className="dash-gen-line-badge">Linie {i+1}: {count} Wörter</span>
+                ))}
+              </div>
+
               <div className="dash-gen-form">
                 <div className="dash-gen-row">
                   <label>Grammatik</label>
@@ -391,18 +441,24 @@ export default function TeacherDashboard() {
                     <option value="B2">B2</option>
                   </select>
                 </div>
-                <div className="dash-gen-row">
-                  <label>Raster</label>
-                  <div className="dash-gen-size">
-                    <input type="number" min={3} max={12} value={genRows} onChange={e => setGenRows(Number(e.target.value))} />
-                    <span>&times;</span>
-                    <input type="number" min={3} max={12} value={genCols} onChange={e => setGenCols(Number(e.target.value))} />
-                  </div>
-                </div>
-                <button className="dash-action-btn" onClick={handleGenerate} disabled={genLoading}>
-                  {genLoading ? 'Generiere...' : 'Generieren'}
-                </button>
               </div>
+
+              {/* Custom prompt */}
+              <div className="dash-gen-section">
+                <label className="dash-gen-section-label">Eigener Prompt (optional)</label>
+                <textarea
+                  className="dash-textarea"
+                  rows={4}
+                  value={genPrompt}
+                  onChange={e => setGenPrompt(e.target.value)}
+                  placeholder="z.B.: Verwende nur Verben im Perfekt. Thema: Urlaub am Meer. Benutze einfache Wörter für Anfänger."
+                />
+              </div>
+
+              <button className="dash-action-btn" onClick={handleGenerate} disabled={genLoading}>
+                {genLoading ? 'Generiere...' : 'Generieren'}
+              </button>
+
               {genError && <div className="dash-errors"><div className="dash-error-item">{genError}</div></div>}
               {genResult && (
                 <textarea className="dash-textarea" rows={16} value={genResult} readOnly />

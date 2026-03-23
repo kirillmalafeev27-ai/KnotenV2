@@ -196,30 +196,52 @@ app.post('/api/claude', async (req, res) => {
   if (!ANTHROPIC_KEY) {
     return res.status(501).json({ error: 'ANTHROPIC_API_KEY nicht gesetzt' });
   }
-  const { grammarTopic, vocabTopic, difficulty, rows, cols } = req.body;
-  if (!grammarTopic || !vocabTopic || !difficulty || !rows || !cols) {
+  const { grammarTopic, vocabTopic, difficulty, levelSpec, levelNumber, customPrompt } = req.body;
+  if (!grammarTopic || !vocabTopic || !difficulty || !levelSpec) {
     return res.status(400).json({ error: 'Fehlende Felder' });
   }
+  const { rows, cols, lines: lineCounts } = levelSpec;
+  if (!rows || !cols || !Array.isArray(lineCounts) || lineCounts.length === 0) {
+    return res.status(400).json({ error: 'Ungültige Level-Spezifikation' });
+  }
+  const totalCells = rows * cols;
 
-  const prompt = `Du bist ein Experte für Deutsch als Fremdsprache. Erstelle ein Level für ein Sprachspiel im JSON-Format.
+  const lineRequirements = lineCounts.map((count, i) =>
+    `- Linie ${i+1}: genau ${count} Wörter/Tokens (= ${count} Zellen im Pfad)`
+  ).join('\n');
 
-Regeln:
-- Raster: ${rows} Zeilen × ${cols} Spalten
-- Mehrere Linien, die das gesamte Raster lückenlos abdecken
-- Jede Linie: zusammenhängende orthogonale Zellen (nur hoch/runter/links/rechts, keine Diagonalen)
-- Keine Überschneidungen zwischen Linien
-- Jede Linie enthält einen grammatisch korrekten deutschen Satz
-- Jede Zelle enthält ein Wort oder eine Multi-Wort-Phrase (z.B. "zu Hause", "am Abend")
-- Tokenanzahl = Zellenanzahl pro Linie
-- Grammatik: ${grammarTopic}, Wortschatz: ${vocabTopic}, Niveau: ${difficulty}
+  const customSection = customPrompt
+    ? `\nZusätzliche Anweisungen vom Lehrer:\n${customPrompt}\n`
+    : '';
 
-Farben: #FF3A5C (rot), #00E5A0 (grün), #4D9EFF (blau), #FFD040 (gelb), #A855F7 (lila), #FF6B30 (orange), #59F0FF (cyan)
+  const prompt = `Du bist ein Experte für Deutsch als Fremdsprache. Erstelle Inhalte für ein Sprachspiel-Level (Level ${levelNumber || '?'}).
 
-Antworte NUR mit dem JSON-Objekt, kein anderer Text:
+WICHTIG — Struktur des Levels:
+- Raster: ${rows} Zeilen × ${cols} Spalten = ${totalCells} Zellen insgesamt
+- ${lineCounts.length} Linien (= ${lineCounts.length} Sätze)
+- Jede Linie hat eine feste Anzahl Zellen. Die Anzahl Tokens (Wörter) MUSS EXAKT der Zellenanzahl entsprechen:
+${lineRequirements}
+
+Regeln für die Sätze:
+- Jeder Satz muss grammatisch korrekt sein
+- Niveau: ${difficulty}, Grammatik: ${grammarTopic}, Wortschatz: ${vocabTopic}
+- Multi-Wort-Phrasen (z.B. "zu Hause", "am Abend", "in der") zählen als EIN Token/eine Zelle
+- Kurze Linien (3-4 Wörter): kurzer Ausruf oder Kommentar (z.B. "Das ist toll!", "Sehr gut gemacht!")
+- Lange Linien (10+ Wörter): vollständiger, sinnvoller Satz
+${customSection}
+Farben: #FF3A5C, #00E5A0, #4D9EFF, #FFD040, #A855F7, #FF6B30, #59F0FF
+
+KRITISCH: Die Pfade (cells) müssen:
+- Orthogonal zusammenhängen (jede Zelle grenzt an die nächste: hoch/runter/links/rechts)
+- Sich NICHT überschneiden
+- ALLE ${totalCells} Zellen des Rasters abdecken (keine Lücken)
+- Innerhalb der Grenzen 0..${rows-1} (Zeilen) und 0..${cols-1} (Spalten) liegen
+
+Antworte NUR mit dem JSON-Objekt:
 {
   "id": 100,
   "ref": "gen",
-  "title": "Generiert",
+  "title": "Level ${levelNumber || '?'}",
   "subtitle": "${vocabTopic}",
   "rows": ${rows},
   "cols": ${cols},
