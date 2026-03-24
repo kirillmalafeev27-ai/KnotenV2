@@ -880,6 +880,30 @@
   font-variant-numeric: tabular-nums;
 }
 
+.grid-check-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--accent);
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: transparent;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.grid-check-btn:hover:not(.dimmed) {
+  background: var(--accent-dim);
+}
+
+.grid-check-btn.dimmed {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
 .grid-reset-btn {
   font-size: 12px;
   color: var(--text);

@@ -76,6 +76,35 @@ function drawSparks(ctx: CanvasRenderingContext2D, sparks: Spark[], pathsByColor
   }
 }
 
+/* ═══ Check Flash System ═══ */
+interface CheckFlash { r: number; c: number; ok: boolean; life: number; }
+const CHECK_FLASH_DURATION = 1.2;
+function tickFlashes(flashes: CheckFlash[], dt: number) {
+  for (let i = flashes.length - 1; i >= 0; i--) {
+    flashes[i].life -= dt / CHECK_FLASH_DURATION;
+    if (flashes[i].life <= 0) flashes.splice(i, 1);
+  }
+}
+function drawFlashes(ctx: CanvasRenderingContext2D, flashes: CheckFlash[], cs: number) {
+  for (const f of flashes) {
+    const cx = f.c * cs + cs / 2, cy = f.r * cs + cs / 2;
+    const a = Math.max(0, f.life);
+    const color = f.ok ? '#44ff88' : '#ff4466';
+    const glowColor = f.ok ? 'rgba(68,255,136,' : 'rgba(255,68,102,';
+    // Cell fill glow
+    ctx.globalAlpha = a * 0.25;
+    ctx.fillStyle = color;
+    ctx.fillRect(f.c * cs, f.r * cs, cs, cs);
+    // Center glow
+    ctx.globalAlpha = a * 0.7;
+    ctx.shadowColor = color; ctx.shadowBlur = cs * 0.5;
+    ctx.fillStyle = glowColor + (a * 0.5) + ')';
+    ctx.beginPath(); ctx.arc(cx, cy, cs * 0.3 * (1 + (1 - a) * 0.3), 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  ctx.globalAlpha = 1;
+}
+
 /* ═══ Component ═══ */
 interface GameGridProps {
   level: Level;
@@ -114,6 +143,7 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
   const sparksRef = useRef<Spark[]>([]);
   const completedLinesRef = useRef<Set<string>>(new Set());
   const endDotsHiddenRef = useRef(false);
+  const checkFlashesRef = useRef<CheckFlash[]>([]);
   const levelRef = useRef(level);
 
   const { speak, stop } = useTTS();
@@ -152,6 +182,7 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
     particlesRef.current = [];
     wavesRef.current = [];
     sparksRef.current = [];
+    checkFlashesRef.current = [];
     setCompletedLines(new Set());
     endDotsHiddenRef.current = false;
     introTRef.current = performance.now();
@@ -337,9 +368,28 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
     particlesRef.current = [];
     wavesRef.current = [];
     sparksRef.current = [];
+    checkFlashesRef.current = [];
     setCompletedLines(new Set());
     introTRef.current = performance.now();
   };
+
+  // ── Check button handler ──
+  const handleCheck = useCallback(() => {
+    const cur = linesRef.current;
+    const completed = completedLinesRef.current;
+    const flashes: CheckFlash[] = [];
+    for (const lineDef of level.lines) {
+      const path = cur[lineDef.color];
+      if (!path || path.length === 0) continue;
+      if (completed.has(lineDef.color)) continue; // skip already completed
+      for (let i = 0; i < path.length; i++) {
+        const [r, c] = path[i];
+        const ok = i < lineDef.cells.length && lineDef.cells[i].r === r && lineDef.cells[i].c === c;
+        flashes.push({ r, c, ok, life: 1 });
+      }
+    }
+    checkFlashesRef.current = flashes;
+  }, [level.lines]);
 
   // ── Resize ──
   const resize = useCallback(() => {
@@ -536,11 +586,22 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
       }
       drawSparks(ctx, sparksRef.current, sparkPaths);
     }
+
+    // 12. Check flashes
+    tickFlashes(checkFlashesRef.current, dt);
+    if (checkFlashesRef.current.length > 0) {
+      drawFlashes(ctx, checkFlashesRef.current, cs);
+    }
   }
 
   // ── Completion stats ──
   const totalCells = level.rows * level.cols;
   const filledCells = Object.values(lines).reduce((sum, p) => sum + p.length, 0);
+  // Check if there are any non-completed lines with cells drawn (for check button state)
+  const hasCheckableLines = !won && level.lines.some(l => {
+    const path = lines[l.color];
+    return path && path.length > 0 && !completedLines.has(l.color);
+  });
 
   return (
     <div className="game-grid-container">
@@ -571,6 +632,10 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
       {/* Progress indicator */}
       <div className="grid-hud">
         <span className="grid-hud-label">{filledCells}/{totalCells} Zellen</span>
+        <button className={`grid-check-btn${hasCheckableLines ? '' : ' dimmed'}`} onClick={handleCheck} disabled={!hasCheckableLines}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          Prüfen
+        </button>
         <button className="grid-reset-btn" onClick={reset}>Level zurücksetzen</button>
       </div>
 
