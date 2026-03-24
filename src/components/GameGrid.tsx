@@ -46,6 +46,36 @@ function drawW(ctx: CanvasRenderingContext2D, ws: Wave[], pts: {x:number;y:numbe
   ctx.globalAlpha = 1;
 }
 
+/* ═══ Green Spark System ═══ */
+interface Spark { progress: number; speed: number; color: string; }
+function tickSparks(sparks: Spark[], dt: number) {
+  for (const s of sparks) { s.progress += s.speed * dt; if (s.progress > 1) s.progress -= 1; }
+}
+function drawSparks(ctx: CanvasRenderingContext2D, sparks: Spark[], pathsByColor: Record<string, {x:number;y:number}[]>) {
+  for (const s of sparks) {
+    const pts = pathsByColor[s.color];
+    if (!pts || pts.length < 2) continue;
+    let tot = 0; const segs = [0];
+    for (let i = 1; i < pts.length; i++) { tot += Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y); segs.push(tot); }
+    const d = s.progress * tot;
+    let px = pts[0].x, py = pts[0].y;
+    for (let i = 1; i < pts.length; i++) {
+      if (d <= segs[i]) { const sl = segs[i]-segs[i-1]; const t = sl > 0 ? (d-segs[i-1])/sl : 0; px = pts[i-1].x+(pts[i].x-pts[i-1].x)*t; py = pts[i-1].y+(pts[i].y-pts[i-1].y)*t; break; }
+    }
+    // Draw green spark with glow
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.shadowColor = '#44ff88'; ctx.shadowBlur = 18;
+    ctx.fillStyle = '#44ff88';
+    ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI*2); ctx.fill();
+    // Bright core
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = '#bbffdd';
+    ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
 /* ═══ Component ═══ */
 interface GameGridProps {
   level: Level;
@@ -66,6 +96,7 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
   const [spokenWords, setSpokenWords] = useState<string[]>([]);
   const [spokenColor, setSpokenColor] = useState<string | null>(null);
   const [showWords, setShowWords] = useState(false);
+  const [completedLines, setCompletedLines] = useState<Set<string>>(new Set());
 
   // ── Refs ──
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -80,6 +111,8 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
   const lastTRef = useRef(0);
   const speakTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sizeRef = useRef({ w: 0, h: 0, cs: 0 });
+  const sparksRef = useRef<Spark[]>([]);
+  const completedLinesRef = useRef<Set<string>>(new Set());
   const levelRef = useRef(level);
 
   const { speak, stop } = useTTS();
@@ -89,6 +122,7 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
   useEffect(() => { activeColorRef.current = activeColor; }, [activeColor]);
   useEffect(() => { wonRef.current = won; }, [won]);
   useEffect(() => { levelRef.current = level; }, [level]);
+  useEffect(() => { completedLinesRef.current = completedLines; }, [completedLines]);
 
   // ── Derived: word grid and start dots ──
   const wordGrid = useMemo(() => {
@@ -99,6 +133,10 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
 
   const startDots = useMemo(() =>
     level.lines.map(l => ({ r: l.cells[0].r, c: l.cells[0].c, color: l.color })),
+  [level]);
+
+  const endDots = useMemo(() =>
+    level.lines.map(l => ({ r: l.cells[l.cells.length-1].r, c: l.cells[l.cells.length-1].c, color: l.color })),
   [level]);
 
   // ── Reset on level change ──
@@ -112,6 +150,8 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
     setSpokenColor(null);
     particlesRef.current = [];
     wavesRef.current = [];
+    sparksRef.current = [];
+    setCompletedLines(new Set());
     introTRef.current = performance.now();
   }, [level.id, level.lines]);
 
@@ -202,6 +242,7 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
     const sd = startDots.find(d => d.r === r && d.c === c);
     if (sd) {
       setActiveColor(sd.color);
+      setCompletedLines(prev => { if (!prev.has(sd.color)) return prev; const n = new Set(prev); n.delete(sd.color); sparksRef.current = sparksRef.current.filter(s => s.color !== sd.color); return n; });
       setLines(prev => ({ ...prev, [sd.color]: [[r, c]] }));
       const cs = sizeRef.current.cs;
       emit(particlesRef.current, c*cs+cs/2, r*cs+cs/2, sd.color, 4);
@@ -213,6 +254,7 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
       const idx = path.findIndex(([pr, pc]) => pr === r && pc === c);
       if (idx !== -1) {
         setActiveColor(color);
+        setCompletedLines(prev => { if (!prev.has(color)) return prev; const n = new Set(prev); n.delete(color); sparksRef.current = sparksRef.current.filter(s => s.color !== color); return n; });
         setLines(prev => ({ ...prev, [color]: path.slice(0, idx + 1) }));
         scheduleSpeech(color);
         (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -254,14 +296,32 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
     });
   }, [getCellFromCanvas, getOccupant]);
 
+  const checkLineComplete = useCallback((color: string) => {
+    const path = linesRef.current[color];
+    const lineDef = level.lines.find(l => l.color === color);
+    if (!lineDef || !path || path.length !== lineDef.cells.length) {
+      setCompletedLines(prev => { if (!prev.has(color)) return prev; const n = new Set(prev); n.delete(color); sparksRef.current = sparksRef.current.filter(s => s.color !== color); return n; });
+      return;
+    }
+    for (let i = 0; i < lineDef.cells.length; i++) {
+      if (path[i][0] !== lineDef.cells[i].r || path[i][1] !== lineDef.cells[i].c) {
+        setCompletedLines(prev => { if (!prev.has(color)) return prev; const n = new Set(prev); n.delete(color); sparksRef.current = sparksRef.current.filter(s => s.color !== color); return n; });
+        return;
+      }
+    }
+    // Line is correct!
+    setCompletedLines(prev => { if (prev.has(color)) return prev; const n = new Set(prev); n.add(color); sparksRef.current.push({ progress: 0, speed: 0.4, color }); return n; });
+  }, [level.lines]);
+
   const handlePointerUp = useCallback(() => {
     const color = activeColorRef.current;
     if (!color) return;
     setActiveColor(null);
     if (speakTimerRef.current) clearTimeout(speakTimerRef.current);
     scheduleSpeech(color);
+    checkLineComplete(color);
     checkWin();
-  }, [checkWin, scheduleSpeech]);
+  }, [checkWin, scheduleSpeech, checkLineComplete]);
 
   const reset = () => {
     stop();
@@ -274,6 +334,8 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
     setSpokenColor(null);
     particlesRef.current = [];
     wavesRef.current = [];
+    sparksRef.current = [];
+    setCompletedLines(new Set());
     introTRef.current = performance.now();
   };
 
@@ -406,11 +468,14 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
       ctx.shadowBlur = 0;
     }
 
-    // 7. Start dots
-    for (let di = 0; di < startDots.length; di++) {
-      const dot = startDots[di];
+    // 7. Start & end dots (hidden for completed lines)
+    const completed = completedLinesRef.current;
+    const allDots = [...startDots.map((d, i) => ({ ...d, idx: i })), ...endDots.map((d, i) => ({ ...d, idx: i + startDots.length }))];
+    for (const dot of allDots) {
+      if (completed.has(dot.color)) continue;
       const cx = dot.c*cs+cs/2, cy = dot.r*cs+cs/2;
-      const iA = Math.min(1, Math.max(0, (introMs - 200 - di*100) / 400));
+      const di = dot.idx;
+      const iA = Math.min(1, Math.max(0, (introMs - 200 - di*60) / 400));
       const iS = 0.5 + 0.5*iA;
       const breathe = 1 + Math.sin(t*2 + di*0.5)*0.028;
       const s = iS * breathe;
@@ -456,6 +521,17 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
     // 10. Particles
     tickP(particlesRef.current, dt);
     drawP(ctx, particlesRef.current);
+
+    // 11. Green sparks on completed lines
+    tickSparks(sparksRef.current, dt);
+    if (sparksRef.current.length > 0) {
+      const sparkPaths: Record<string, {x:number;y:number}[]> = {};
+      for (const s of sparksRef.current) {
+        const path = curLines[s.color];
+        if (path && path.length >= 2) sparkPaths[s.color] = path.map(([r,c]) => ({x:c*cs+cs/2, y:r*cs+cs/2}));
+      }
+      drawSparks(ctx, sparksRef.current, sparkPaths);
+    }
   }
 
   // ── Completion stats ──
