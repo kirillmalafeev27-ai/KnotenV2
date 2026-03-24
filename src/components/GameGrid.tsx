@@ -113,6 +113,7 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
   const sizeRef = useRef({ w: 0, h: 0, cs: 0 });
   const sparksRef = useRef<Spark[]>([]);
   const completedLinesRef = useRef<Set<string>>(new Set());
+  const endDotsHiddenRef = useRef(false);
   const levelRef = useRef(level);
 
   const { speak, stop } = useTTS();
@@ -122,7 +123,7 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
   useEffect(() => { activeColorRef.current = activeColor; }, [activeColor]);
   useEffect(() => { wonRef.current = won; }, [won]);
   useEffect(() => { levelRef.current = level; }, [level]);
-  useEffect(() => { completedLinesRef.current = completedLines; }, [completedLines]);
+  useEffect(() => { completedLinesRef.current = completedLines; if (completedLines.size > 0) endDotsHiddenRef.current = true; }, [completedLines]);
 
   // ── Derived: word grid and start dots ──
   const wordGrid = useMemo(() => {
@@ -152,6 +153,7 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
     wavesRef.current = [];
     sparksRef.current = [];
     setCompletedLines(new Set());
+    endDotsHiddenRef.current = false;
     introTRef.current = performance.now();
   }, [level.id, level.lines]);
 
@@ -468,15 +470,13 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
       ctx.shadowBlur = 0;
     }
 
-    // 7. Start dots (always visible) & end dots (hidden once any line is completed)
-    const completed = completedLinesRef.current;
-    const anyCompleted = completed.size > 0;
+    // 7. Start dots (always visible) & end dots (hidden permanently once any line was completed)
     const allDots = [
       ...startDots.map((d, i) => ({ ...d, idx: i, isEnd: false })),
       ...endDots.map((d, i) => ({ ...d, idx: i + startDots.length, isEnd: true })),
     ];
     for (const dot of allDots) {
-      if (dot.isEnd && anyCompleted) continue;
+      if (dot.isEnd && endDotsHiddenRef.current) continue;
       const cx = dot.c*cs+cs/2, cy = dot.r*cs+cs/2;
       const di = dot.idx;
       const iA = Math.min(1, Math.max(0, (introMs - 200 - di*60) / 400));
