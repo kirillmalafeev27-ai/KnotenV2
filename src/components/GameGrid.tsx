@@ -516,14 +516,16 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
       )}
 
       {/* Listen buttons per line */}
-      {!activeColor && !won && filledCells > 0 && (
+      {!won && (
         <div className="listen-row">
           {level.lines.map(l => {
             const path = lines[l.color];
-            if (!path || path.length < 2) return null;
+            const hasWords = path && path.length >= 2;
             return (
-              <button key={l.color} className="listen-btn-small" style={{ borderColor: hexRgba(l.color, 0.4), color: l.color }}
+              <button key={l.color} className="listen-btn-small" disabled={!hasWords}
+                style={{ borderColor: hexRgba(l.color, hasWords ? 0.4 : 0.15), color: hasWords ? l.color : hexRgba(l.color, 0.3) }}
                 onClick={() => {
+                  if (!hasWords) return;
                   const words = path.map(([r,c]) => wordGrid[r][c]).filter(Boolean);
                   if (words.length > 0) { setSpokenWords(words); setSpokenColor(l.color); speak(words.join(' ')); logEvent?.(level.id, 'listen', { wordsHeard: words }); }
                 }}>
