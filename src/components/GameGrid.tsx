@@ -468,12 +468,15 @@ export default function GameGrid({ level, onComplete, logEvent }: GameGridProps)
       ctx.shadowBlur = 0;
     }
 
-    // 7. Start & end dots (all hidden once any line is completed)
+    // 7. Start dots (always visible) & end dots (hidden once any line is completed)
     const completed = completedLinesRef.current;
     const anyCompleted = completed.size > 0;
-    const allDots = [...startDots.map((d, i) => ({ ...d, idx: i })), ...endDots.map((d, i) => ({ ...d, idx: i + startDots.length }))];
+    const allDots = [
+      ...startDots.map((d, i) => ({ ...d, idx: i, isEnd: false })),
+      ...endDots.map((d, i) => ({ ...d, idx: i + startDots.length, isEnd: true })),
+    ];
     for (const dot of allDots) {
-      if (anyCompleted) continue;
+      if (dot.isEnd && anyCompleted) continue;
       const cx = dot.c*cs+cs/2, cy = dot.r*cs+cs/2;
       const di = dot.idx;
       const iA = Math.min(1, Math.max(0, (introMs - 200 - di*60) / 400));
